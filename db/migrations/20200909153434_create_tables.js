@@ -17,16 +17,18 @@ exports.up = async (knex) => {
     .createTable("user_contacts", (table) => {
       table.integer("user_id").notNullable();
       table.integer("contact_id").notNullable();
+      table.boolean("contact_status").defaultTo(true);
       table.integer("chat_id").notNullable();
       table.boolean("chat_status").defaultTo(false);
     })
     .createTable("user_messages", (table) => {
-      table.increments("id");
-      table.string("content");
-      table.integer("author_id");
-      table.integer("chat_id");
+      table.increments("id").primary();
+      table.string("content").notNullable();
+      table.integer("author_id").notNullable();
+      table.integer("chat_id").notNullable();
       table.integer("likes").defaultTo(0);
       table.string("reactions").defaultTo(null);
+      table.string("time").defaultTo(null);
       table.timestamp("created_at").defaultTo(knex.fn.now());
     });
 
@@ -40,23 +42,23 @@ exports.up = async (knex) => {
   await knex.raw(`
     create view user_contact_cards as
     select C.*, 
-    P.name as contact_name, 
-    P.gender as contact_gender, 
-    P.country as contact_country,
-    P.avatar_url as contact_avatar_url
+    A.name as contact_name, 
+    A.gender as contact_gender, 
+    A.country as contact_country,
+    A.avatar_url as contact_avatar_url
     from user_contacts as C 
-    inner join user_profiles as P 
-    on C.contact_id = P.user_id;
+    inner join user_accounts as A 
+    on C.contact_id = A.user_id;
   `);
 
   await knex.raw(`
     create view user_message_cards as
     select M.*,
-    P.name as author_name,
-    P.avatar_url as author_avatar_url
+    A.name as author_name,
+    A.avatar_url as author_avatar_url
     from user_messages as M 
-    inner join user_profiles as P
-    on M.author_id = P.user_id;
+    inner join user_accounts as A
+    on M.author_id = A.user_id;
     `);
 };
 
