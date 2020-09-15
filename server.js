@@ -1,11 +1,44 @@
 const knex = require("./db/knex");
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 4000;
 const express = require("express");
 const app = express();
+const cors = require("cors");
+
 app.use(express.json());
+app.use(cors({ origin: true }));
 
 app.get("/", (req, res) => {
   res.send("Hello world");
+});
+
+app.post("/login", async (req, res, next) => {
+  const { email, password } = req.body;
+  // name can be used as email
+  try {
+    const data = await knex("user_accounts").whereRaw("email = ? or name = ?", [
+      email,
+      email,
+    ]);
+    const user = data[0];
+    if (!user) {
+      return res.status(400).json({ message: "email or name does not exist" });
+    }
+
+    if (user.password !== password) {
+      return res.status(400).json({ message: "password is incorrect" });
+    }
+
+    const { user_id } = user;
+    const user_profile_row = await knex("user_profiles").where(
+      "user_id",
+      user_id
+    );
+    await knex("user_logs").insert({ user_id, type: "LOGIN" });
+    res.locals.user_id = user_id;
+    res.status(200).json(user_profile_row[0]);
+  } catch (err) {
+    next(err);
+  }
 });
 
 app.get("/users/:id", (req, res, next) => {
@@ -27,6 +60,7 @@ app.get("/contacts/:user_id", async (req, res, next) => {
       "user_id",
       req.params.user_id
     );
+
     // fetch messages containing above chat_id's
     // sort them according to the chat id
     // into chats object
@@ -44,7 +78,7 @@ app.get("/contacts/:user_id", async (req, res, next) => {
       const chat_id = message.chat_id;
 
       if (chat_id in chats) {
-        chats[chat_id].push(message);
+        chats[chat_id].unshift(message);
       } else {
         chats[chat_id] = [message];
       }
@@ -89,6 +123,17 @@ app.post("/messages/:chat_id", async (req, res, next) => {
 
     const rows = await knex("user_message_cards").where("id", data[0]);
     res.send(rows[0]);
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.post("/signout", async (req, res, next) => {
+  const { user_id } = res.locals;
+  try {
+    await knex("user_logs").insert({ user_id, type: "LOGOUT" });
+    res.locals.user_id = null;
+    res.sendStatus(200);
   } catch (err) {
     next(err);
   }
